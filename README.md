@@ -655,4 +655,4 @@ sysctl net.core.busy_poll=50
 
 ## License
 
-Proprietary. All rights reserved.
+MIT — see [LICENSE](LICENSE).

@@ -3,7 +3,7 @@ name = "velocitas-fix"
 version = "0.1.0"
 edition = "2021"
 description = "High-performance FIX protocol engine for institutional trading"
-license = "Proprietary"
+license = "MIT"
 
 [features]
 default = ["kernel-tcp"]
