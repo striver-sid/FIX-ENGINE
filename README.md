@@ -328,6 +328,8 @@ let wire_msg = &buf[..len]; // ready to send
 
 ### Aeron Transport (Default Integration)
 
+For a dedicated step-by-step setup guide, see [AERON.md](AERON.md).
+
 ```rust
 use velocitas_fix::transport::{build_transport, TransportConfig};
 
@@ -669,6 +671,7 @@ sysctl net.core.busy_poll=50
 
 - **[SPECIFICATION.md](SPECIFICATION.md)** — Complete 15-section technical specification covering architecture, threading, memory layout, session FSM, security, configuration, and compliance
 - **[BENCHMARKS.md](BENCHMARKS.md)** — Benchmark definitions, methodology, measured results, and QuickFIX/J comparison
+- **[AERON.md](AERON.md)** — Dedicated guide for the standard/default Aeron integration path
 
 ## Roadmap
 
