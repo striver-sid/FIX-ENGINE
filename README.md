@@ -14,7 +14,7 @@
   <img src="demo.gif" alt="Velocitas FIX Engine Demo" width="800">
 </p>
 
-Velocitas is a **deterministic, zero-allocation FIX protocol engine** written in Rust, designed for the electronic trading infrastructure of tier-1 investment banks. It achieves sub-microsecond message parsing, single-digit microsecond wire-to-wire latency, and sustained throughput exceeding 2 million messages per second per core on Apple Silicon — benchmarked at **29× faster serialization** and **1.5–2.2× faster parsing** than QuickFIX/J.
+Velocitas is a **deterministic, zero-allocation FIX protocol engine** written in Rust, designed for the electronic trading infrastructure of tier-1 investment banks. It achieves sub-microsecond message parsing, single-digit microsecond wire-to-wire latency, and sustained throughput exceeding 2 million messages per second per core on Apple Silicon — benchmarked at **29× faster serialization** and **1.5–2.2× faster parsing** than QuickFIX/J. Aeron IPC is the standard/default colocated integration path, while TCP remains available for venue and counterparty connectivity.
 
 ## Highlights
 
@@ -23,20 +23,21 @@ Velocitas is a **deterministic, zero-allocation FIX protocol engine** written in
 - 🧠 **Zero-copy parser** — flyweight pattern, no heap allocations on hot path
 - 🔒 **Lock-free** memory pool with 8.5 ns alloc/dealloc cycles
 - 💾 **Memory-mapped journal** with CRC32 integrity and crash recovery
-- 📐 **238 tests** — unit, integration, conformance, property-based (fuzz)
+- 📐 **Extensive test suite** — unit, integration, conformance, property-based (fuzz)
 - 📊 **4 Criterion benchmark suites** with competitive comparison framework
 - 🏛️ **Regulatory compliant** — MiFID II, Reg NMS, CAT, SEC Rule 15c3-5
 - 🔁 **FIXT 1.1 / FIX 5.0 SP2** transport-independent session protocol
+- 📡 **Aeron IPC transport** — the default colocated integration pattern
 - 🚀 **SIMD parsing** — NEON (ARM) + SSE2 (x86) accelerated delimiter scanning
 - 🔄 **Repeating groups** — nested group parser for market data, legs, fills
 - 📡 **DPDK transport** — kernel-bypass NIC access via poll-mode drivers
-- 🏗️ **Cluster HA** — Raft-based active-active with state replication + snapshots
+- 🏗️ **Cluster HA** — Aeron-aligned Raft model with state replication + snapshots
 - 📈 **Prometheus metrics** — lock-free counters, gauges, HDR histograms
 - 🌐 **Web dashboard** — HTTP endpoints for health, sessions, metrics
 - ⏱️ **Hardware timestamps** — TSC/rdtsc/CNTVCT with MiFID II nanosecond formatting
 - 🔌 **Session acceptor** — connection pooling, CompID whitelisting, idle eviction
 - 📖 **XML dictionary compiler** — QuickFIX XML → O(1) runtime lookup tables
-- 🔌 **TCP networking** — real initiator and acceptor with full Logon/Logout lifecycle
+- 🔌 **TCP networking** — real initiator and acceptor for venue/counterparty connectivity
 - 🖥️ **`FixServer`** — high-level acceptor with auto-accept, CompID whitelisting, thread-per-connection
 - 📡 **`FixClient`** — high-level initiator with single-call `connect_and_run()`
 
@@ -93,12 +94,13 @@ All numbers measured on Apple Silicon (M-series) using Criterion.rs. See [BENCHM
 │  Transport  │   Session    │   Message    │    Application      │
 │   Layer     │   Layer      │   Layer      │    Gateway          │
 ├─────────────┼──────────────┼──────────────┼─────────────────────┤
-│ • DPDK /    │ • Session    │ • Zero-copy  │ • Order routing     │
-│   OpenOnload│   state FSM  │   parser     │ • Strategy callbk   │
-│ • TCP/UDP   │ • Seq mgmt   │ • Flyweight  │ • Risk checks       │
-│ • Multicast │ • Heartbeat  │   pattern    │ • Drop-copy         │
-│ • Unix sock │ • Logon/out  │ • FIX dict   │ • Admin interface   │
-│ • Shared mem│ • Gap detect │   compiler   │ • Metrics export    │
+│ • Aeron IPC │ • Session    │ • Zero-copy  │ • Order routing     │
+│ • DPDK /    │   state FSM  │   parser     │ • Strategy callbk   │
+│   OpenOnload│ • Seq mgmt   │ • Flyweight  │ • Risk checks       │
+│ • TCP/UDP   │ • Heartbeat  │   pattern    │ • Drop-copy         │
+│ • Multicast │ • Logon/out  │ • FIX dict   │ • Admin interface   │
+│ • Unix sock │ • Gap detect │   compiler   │ • Metrics export    │
+│ • Shared mem│              │              │                     │
 └─────────────┴──────────────┴──────────────┴─────────────────────┘
          │              │              │               │
     ┌────┴────┐    ┌────┴────┐   ┌────┴────┐    ┌────┴────┐
@@ -137,6 +139,7 @@ velocitas-fix-engine/
 ├── src/
 │   ├── lib.rs                # Crate root — public API exports
 │   ├── bin/
+│   │   ├── aeron_demo.rs     # Default Aeron IPC initiator/acceptor demo
 │   │   ├── demo.rs           # Full engine capability demo
 │   │   ├── bench_compare.rs  # Rust-side benchmark for QuickFIX/J comparison
 │   │   ├── bench_tcp.rs      # TCP round-trip benchmark
@@ -147,7 +150,8 @@ velocitas-fix-engine/
 │   ├── serializer.rs         # Zero-alloc message builder/serializer
 │   ├── message.rs            # MessageView flyweight + MsgType/Side/OrdType enums
 │   ├── session.rs            # Session state machine (FSM) + heartbeat + sequencing
-│   ├── transport.rs          # Transport abstraction (kernel TCP, DPDK, OpenOnload)
+│   ├── transport.rs          # Transport config + factory (Aeron default, TCP, DPDK)
+│   ├── transport_aeron.rs    # Aeron IPC transport for colocated integration
 │   ├── transport_dpdk.rs     # DPDK kernel-bypass transport (poll-mode driver)
 │   ├── journal.rs            # Memory-mapped message journal with CRC32
 │   ├── pool.rs               # Lock-free pre-allocated buffer pool
@@ -190,11 +194,14 @@ velocitas-fix-engine/
 ### Build
 
 ```bash
-# Standard build (kernel TCP transport)
+# Standard build (Aeron IPC integration enabled by default)
 cargo build --release
 
 # With TLS support
 cargo build --release --features tls
+
+# With kernel TCP helpers enabled explicitly
+cargo build --release --features kernel-tcp
 
 # With DPDK kernel bypass (requires DPDK installed)
 cargo build --release --features dpdk
@@ -203,6 +210,9 @@ cargo build --release --features dpdk
 ### Run Demo
 
 ```bash
+# Default Aeron IPC initiator/acceptor demo
+cargo run --release --bin aeron_demo
+
 # Full engine capability demo
 cargo run --release --bin demo
 
@@ -216,7 +226,7 @@ cargo run --release --bin dashboard
 ### Run Tests
 
 ```bash
-# Run all 238 tests
+# Run all tests
 cargo test
 
 # Run with output (see throughput numbers)
@@ -314,6 +324,21 @@ let len = serializer::build_new_order_single(
 );
 
 let wire_msg = &buf[..len]; // ready to send
+```
+
+### Aeron Transport (Default Integration)
+
+```rust
+use velocitas_fix::transport::{build_transport, TransportConfig};
+
+let mut acceptor = build_transport(TransportConfig::aeron_ipc(1001))?;
+acceptor.bind("127.0.0.1", 0)?;
+
+let mut initiator = build_transport(TransportConfig::default())?;
+initiator.connect("127.0.0.1", 0)?;
+
+// Feed either transport into FixEngine::new_acceptor(...) or
+// FixEngine::new_initiator(...). See src/bin/aeron_demo.rs for a full example.
 ```
 
 ### Session Management
@@ -449,7 +474,7 @@ let config = ClusterConfig::three_node(
 );
 let mut node = ClusterNode::new(config);
 node.start();
-node.replicate_session_state(state); // Raft-based consensus
+node.replicate_session_state(state); // Aeron-aligned Raft model
 ```
 
 ### XML Dictionary Compiler
@@ -464,6 +489,8 @@ let errors = dict.validate_message("D", &tags); // check required fields
 ```
 
 ### FIX Server (Acceptor)
+
+Use this when you explicitly want TCP socket ingress. For colocated application integration, use `FixEngine` with the default Aeron transport instead.
 
 ```rust
 use velocitas_fix::server::*;
@@ -481,6 +508,8 @@ server.start(|| Box::new(MyApp)).unwrap();
 ```
 
 ### FIX Client (Initiator)
+
+Use this when you explicitly want TCP socket egress. For colocated application integration, use `FixEngine` with the default Aeron transport instead.
 
 ```rust
 use velocitas_fix::client::*;
@@ -590,7 +619,8 @@ See [BENCHMARKS.md](BENCHMARKS.md) for full methodology and results.
 
 | Flag | Description | Default |
 |---|---|---|
-| `kernel-tcp` | Standard kernel TCP/IP transport | ✅ |
+| `aeron` | Aeron IPC colocated integration transport | ✅ |
+| `kernel-tcp` | Kernel TCP venue/counterparty connectivity helpers | |
 | `dpdk` | DPDK user-space TCP (kernel bypass) | |
 | `openonload` | Solarflare OpenOnload transport | |
 | `tls` | TLS 1.3 via rustls (mutual auth) | |
@@ -643,10 +673,11 @@ sysctl net.core.busy_poll=50
 ## Roadmap
 
 - [x] FIX 5.0 SP2 / FIXT 1.1 transport-independent session protocol
+- [x] Aeron IPC transport as the default integration path
 - [x] DPDK transport implementation (poll-mode driver integration)
 - [x] SIMD-accelerated SOH scanning (AVX2 + NEON)
 - [x] Repeating group parser with nested group support
-- [x] Aeron Cluster integration for active-active HA
+- [x] Aeron-aligned cluster model for active-active HA
 - [x] XML dictionary compiler (FIX Orchestra → binary)
 - [x] Prometheus metrics exporter
 - [x] Web dashboard with real-time latency heatmaps

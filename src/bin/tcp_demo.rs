@@ -77,7 +77,7 @@ fn run_acceptor(listener: TcpListener, ready_tx: mpsc::Sender<()>) {
     stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
     stream.set_nodelay(true).unwrap();
 
-    let transport = StdTcpTransport::from_stream(stream, TransportConfig::default())
+    let transport = StdTcpTransport::from_stream(stream, TransportConfig::kernel_tcp())
         .expect("Failed to wrap stream");
 
     let session_config = SessionConfig {
@@ -176,7 +176,7 @@ fn run_initiator(port: u16) {
     // Small delay to let acceptor call accept()
     thread::sleep(Duration::from_millis(100));
 
-    let mut transport = StdTcpTransport::new(TransportConfig::default());
+    let mut transport = StdTcpTransport::new(TransportConfig::kernel_tcp());
     transport.connect("127.0.0.1", port).expect("Connect failed");
     println!("  {GREEN}▸{RESET} Initiator: connected to 127.0.0.1:{port}");
 

@@ -69,12 +69,12 @@ This specification defines **Velocitas FIX Engine**, a deterministic, ultra-low-
 │  Transport  │   Session    │   Message    │    Application      │
 │   Layer     │   Layer      │   Layer      │    Gateway          │
 ├─────────────┼──────────────┼──────────────┼─────────────────────┤
-│ • DPDK/     │ • Session    │ • Zero-copy  │ • Order routing     │
-│   OpenOnload│   state FSM  │   parser     │ • Strategy callbk   │
-│ • TCP/UDP   │ • Seq mgmt   │ • Flyweight  │ • Risk checks       │
-│ • Multicast │ • Heartbeat  │   pattern    │ • Drop-copy         │
-│ • Unix sock │ • Logon/out  │ • FIX dict   │ • Admin interface   │
-│ • Shared mem│ • Gap detect │   compiler   │ • Metrics export    │
+│ • Aeron IPC │ • Session    │ • Zero-copy  │ • Order routing     │
+│ • DPDK/     │   state FSM  │   parser     │ • Strategy callbk   │
+│   OpenOnload│ • Seq mgmt   │ • Flyweight  │ • Risk checks       │
+│ • TCP/UDP   │ • Heartbeat  │   pattern    │ • Drop-copy         │
+│ • Multicast │ • Logon/out  │ • FIX dict   │ • Admin interface   │
+│ • Unix sock │ • Gap detect │   compiler   │ • Metrics export    │
 └─────────────┴──────────────┴──────────────┴─────────────────────┘
          │              │              │               │
     ┌────┴────┐    ┌────┴────┐   ┌────┴────┐    ┌────┴────┐
@@ -97,7 +97,7 @@ This specification defines **Velocitas FIX Engine**, a deterministic, ultra-low-
 | `io-rx-{n}` | Isolated core | Kernel-bypass NIC poll, TCP reassembly |
 | `session-{n}` | Isolated core | FIX session state machine, heartbeat, sequencing |
 | `parser-{n}` | Isolated core | Zero-copy FIX message parsing |
-| `app-{n}` | Isolated core | Application callback dispatch |
+| `app-{n}` | Isolated core | Aeron ingress/egress dispatch |
 | `io-tx-{n}` | Isolated core | Serialization, NIC transmit |
 | `journal` | Isolated core | Asynchronous message persistence |
 | `admin` | Shared core | Configuration, monitoring, REST API |
@@ -123,9 +123,10 @@ Pre-allocated Memory Pools
 
 ### 4.1 Kernel Bypass Stack
 
-- **Primary:** DPDK (Data Plane Development Kit) with poll-mode drivers
-- **Fallback:** Solarflare OpenOnload / ef_vi for Solarflare NICs
-- **Standard:** POSIX TCP/UDP for non-latency-sensitive connections
+- **Standard/default colocated integration:** Aeron IPC / UDP transport
+- **Primary venue transport:** DPDK (Data Plane Development Kit) with poll-mode drivers
+- **Fallback venue transport:** Solarflare OpenOnload / ef_vi for Solarflare NICs
+- **Compatibility transport:** POSIX TCP/UDP for non-latency-sensitive venue connections
 - Support for Mellanox ConnectX-6 Dx / Intel E810 NICs
 
 ### 4.2 TCP Implementation
@@ -139,7 +140,7 @@ Pre-allocated Memory Pools
 ### 4.3 Connection Management
 
 - Acceptor and Initiator modes
-- Configurable per-session transport (kernel bypass / standard)
+- Configurable per-session venue transport plus Aeron for colocated integration
 - Connection pooling with pre-established backup connections
 - Automatic reconnection with exponential backoff (configurable)
 
@@ -272,7 +273,25 @@ MessageView (Flyweight — no copies)
 
 ## 8. Application Gateway
 
-### 8.1 Callback Interface
+### 8.1 Aeron Transport (Standard)
+
+The default application integration is Aeron-based ingress/egress rather than direct in-process callbacks.
+
+```rust
+struct AeronGatewayConfig {
+    ingress_channel: "aeron:ipc",
+    ingress_stream_id: 1001,
+    egress_channel: "aeron:ipc",
+    egress_stream_id: 1002,
+}
+```
+
+- Inbound FIX application flow is published onto Aeron ingress streams
+- Responses and drop-copy flow are emitted on Aeron egress streams
+- One FIX wire message is mapped to one Aeron frame
+- TCP client/server wrappers remain available for venue connectivity
+
+### 8.2 Callback Adapter
 
 ```
 trait FixApplicationHandler {
@@ -289,14 +308,16 @@ enum Action { Accept, Reject(String), Disconnect }
 enum GapAction { RequestResend, Reset, Disconnect }
 ```
 
-### 8.2 Pre-Trade Risk Checks (Inline)
+Direct callback handlers remain supported as a convenience adapter for tests and single-process embeddings.
+
+### 8.3 Pre-Trade Risk Checks (Inline)
 
 - **Fat-finger check:** Notional value threshold per instrument
 - **Rate limiting:** Messages per second per session/CompID
 - **Duplicate detection:** ClOrdID bloom filter (lock-free)
 - **Kill switch:** Atomic flag to halt all outbound order flow
 
-### 8.3 Message Routing
+### 8.4 Message Routing
 
 - Content-based routing (route by symbol, desk, strategy)
 - Round-robin and weighted distribution across downstream sessions
@@ -497,7 +518,8 @@ sessions:
 
 ```toml
 [features]
-default = ["kernel-tcp"]
+aeron = []
+default = ["aeron"]
 dpdk = ["dep:dpdk-sys"]
 openonload = ["dep:onload-sys"]
 kernel-tcp = []

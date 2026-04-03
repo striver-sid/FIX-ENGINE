@@ -115,7 +115,7 @@ fn run_acceptor(listener: TcpListener, ready_tx: mpsc::Sender<()>) {
     let (stream, _) = listener.accept().expect("accept failed");
     stream.set_nodelay(true).unwrap();
 
-    let transport = StdTcpTransport::from_stream(stream, TransportConfig::default())
+    let transport = StdTcpTransport::from_stream(stream, TransportConfig::kernel_tcp())
         .expect("wrap failed");
 
     let session = Session::new(SessionConfig {
@@ -172,7 +172,7 @@ impl FixApp for BenchAcceptorApp {
 fn run_initiator(port: u16, count: usize) -> (Duration, Vec<Duration>) {
     thread::sleep(Duration::from_millis(50));
 
-    let mut transport = StdTcpTransport::new(TransportConfig::default());
+    let mut transport = StdTcpTransport::new(TransportConfig::kernel_tcp());
     transport.connect("127.0.0.1", port).expect("connect failed");
 
     let session = Session::new(SessionConfig {

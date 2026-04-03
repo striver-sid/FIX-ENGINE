@@ -1,7 +1,8 @@
 /// High-level FIX acceptor server.
 ///
 /// Listens on a TCP port, auto-accepts connections, validates CompIDs,
-/// reads inbound Logon, and spawns a per-connection engine thread.
+/// reads inbound Logon, and spawns a per-connection engine thread. For the
+/// standard colocated integration path, prefer `FixEngine` with Aeron transport.
 ///
 /// # Example
 ///
@@ -15,7 +16,6 @@
 /// let server = FixServer::new(config);
 /// server.start(|| Box::new(MyApp::new()));
 /// ```
-
 use std::io::{self, Read};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
@@ -25,7 +25,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::acceptor::{Acceptor, AcceptorConfig};
 use crate::engine::{FixApp, FixEngine};
 use crate::parser::FixParser;
-use crate::session::{Session, SessionConfig, SessionRole, SequenceResetPolicy};
+use crate::session::{SequenceResetPolicy, Session, SessionConfig, SessionRole};
 use crate::transport::TransportConfig;
 use crate::transport_tcp::StdTcpTransport;
 
@@ -105,7 +105,8 @@ impl FixServer {
                 }
             };
 
-            let remote = stream.peer_addr()
+            let remote = stream
+                .peer_addr()
                 .map(|a| a.to_string())
                 .unwrap_or_else(|_| "unknown".into());
 
@@ -114,7 +115,9 @@ impl FixServer {
             let config = config.clone();
 
             thread::spawn(move || {
-                if let Err(e) = handle_connection(stream, &remote, &config, &acceptor, &*app_factory) {
+                if let Err(e) =
+                    handle_connection(stream, &remote, &config, &acceptor, &*app_factory)
+                {
                     eprintln!("  [{remote}] Error: {e}");
                 }
                 // Release connection from pool
@@ -144,26 +147,37 @@ fn handle_connection(
     let logon_comp_id = loop {
         let n = stream.read(&mut buf[pos..])?;
         if n == 0 {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "connection closed before Logon"));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "connection closed before Logon",
+            ));
         }
         pos += n;
 
         if let Some(boundary) = parser.find_message_boundary(&buf[..pos]) {
-            let (view, _) = parser.parse(&buf[..boundary])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("parse error: {:?}", e)))?;
+            let (view, _) = parser.parse(&buf[..boundary]).map_err(|e| {
+                io::Error::new(io::ErrorKind::InvalidData, format!("parse error: {:?}", e))
+            })?;
 
-            let msg_type = view.msg_type()
+            let msg_type = view
+                .msg_type()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "no MsgType"))?;
 
             if msg_type != b"A" {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("expected Logon (A), got MsgType={}", String::from_utf8_lossy(msg_type)),
+                    format!(
+                        "expected Logon (A), got MsgType={}",
+                        String::from_utf8_lossy(msg_type)
+                    ),
                 ));
             }
 
-            let comp_id = view.sender_comp_id()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "no SenderCompID in Logon"))?
+            let comp_id = view
+                .sender_comp_id()
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "no SenderCompID in Logon")
+                })?
                 .to_string();
 
             break comp_id;
@@ -199,7 +213,7 @@ fn handle_connection(
         max_msg_rate: 50_000,
     };
 
-    let transport = StdTcpTransport::from_stream(stream, TransportConfig::default())?;
+    let transport = StdTcpTransport::from_stream(stream, TransportConfig::kernel_tcp())?;
     let session = Session::new(session_config);
     let mut engine = FixEngine::new_acceptor(transport, session);
 

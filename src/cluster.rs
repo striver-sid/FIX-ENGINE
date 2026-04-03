@@ -1,4 +1,4 @@
-/// Aeron Cluster integration for active-active high availability.
+/// Aeron-aligned cluster model for active-active high availability.
 ///
 /// Replicates FIX session state across multiple engine instances using a
 /// consensus protocol modeled after Aeron Cluster / Raft. Each node maintains

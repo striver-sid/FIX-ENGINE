@@ -1,6 +1,8 @@
 /// High-level FIX initiator client.
 ///
-/// Connects to a remote FIX acceptor, performs Logon, and runs the session.
+/// Connects to a remote FIX acceptor over kernel TCP, performs Logon, and runs
+/// the session. For the standard colocated integration path, prefer
+/// `FixEngine` with `transport::build_transport(TransportConfig::default())`.
 ///
 /// # Example
 ///
@@ -15,12 +17,11 @@
 /// let client = FixClient::new(config);
 /// client.connect_and_run(&mut MyApp::new()).unwrap();
 /// ```
-
 use std::io;
 use std::time::Duration;
 
 use crate::engine::{FixApp, FixEngine};
-use crate::session::{Session, SessionConfig, SessionRole, SequenceResetPolicy};
+use crate::session::{SequenceResetPolicy, Session, SessionConfig, SessionRole};
 use crate::transport::Transport;
 use crate::transport::TransportConfig;
 use crate::transport_tcp::StdTcpTransport;
@@ -64,11 +65,14 @@ impl FixClient {
     /// Connect to the remote acceptor and run the FIX session.
     /// Blocks until the session ends (Logout or disconnect).
     pub fn connect_and_run(&self, app: &mut dyn FixApp) -> io::Result<()> {
-        let mut transport = StdTcpTransport::new(TransportConfig::default());
+        let mut transport = StdTcpTransport::new(TransportConfig::kernel_tcp());
         transport.connect(&self.config.remote_host, self.config.remote_port)?;
 
         let session_config = SessionConfig {
-            session_id: format!("{}-{}", self.config.sender_comp_id, self.config.target_comp_id),
+            session_id: format!(
+                "{}-{}",
+                self.config.sender_comp_id, self.config.target_comp_id
+            ),
             fix_version: self.config.fix_version.clone(),
             sender_comp_id: self.config.sender_comp_id.clone(),
             target_comp_id: self.config.target_comp_id.clone(),

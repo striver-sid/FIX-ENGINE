@@ -92,8 +92,7 @@ mod tests {
         // "8=FIX.4.4" + SOH = bytes
         let data = b"8=FIX.4.4\x019=5\x0135=0\x01";
         let cs = compute(data);
-        // Verify it's a valid u8
-        assert!(cs <= 255);
+        assert_eq!(cs, 163);
     }
 
     #[test]

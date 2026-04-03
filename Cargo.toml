@@ -6,7 +6,8 @@ description = "High-performance FIX protocol engine for institutional trading"
 license = "MIT"
 
 [features]
-default = ["kernel-tcp"]
+aeron = []
+default = ["aeron"]
 dpdk = []
 openonload = []
 kernel-tcp = []

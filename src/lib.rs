@@ -3,6 +3,7 @@ pub mod parser;
 pub mod serializer;
 pub mod session;
 pub mod transport;
+pub mod transport_aeron;
 pub mod transport_dpdk;
 pub mod transport_tcp;
 pub mod journal;

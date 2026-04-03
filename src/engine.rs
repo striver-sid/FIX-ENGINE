@@ -2,12 +2,11 @@
 ///
 /// Ties together Transport, Session, Parser, and Serializer to handle the
 /// full FIX session lifecycle: Logon, heartbeat, application messages, Logout.
-
 use std::io;
 
 use crate::parser::FixParser;
 use crate::serializer;
-use crate::session::{Session, SessionAction, SessionState};
+use crate::session::{Session, SessionAction, SessionRole, SessionState};
 use crate::timestamp::{HrTimestamp, TimestampSource};
 use crate::transport::Transport;
 
@@ -20,7 +19,12 @@ pub trait FixApp {
     }
 
     /// Called when an application-level message is received (not session-level).
-    fn on_message(&mut self, msg_type: &[u8], msg: &crate::message::MessageView<'_>, ctx: &mut EngineContext<'_>) -> io::Result<()>;
+    fn on_message(
+        &mut self,
+        msg_type: &[u8],
+        msg: &crate::message::MessageView<'_>,
+        ctx: &mut EngineContext<'_>,
+    ) -> io::Result<()>;
 
     /// Called when a Logout is received.
     fn on_logout(&mut self) -> io::Result<()> {
@@ -102,8 +106,13 @@ impl<T: Transport> FixEngine<T> {
         let target = self.session.config().target_comp_id.clone();
         let hb = self.session.config().heartbeat_interval.as_secs() as i64;
         let len = serializer::build_logon(
-            &mut self.send_buf, ver.as_bytes(), sender.as_bytes(), target.as_bytes(),
-            seq, &ts, hb,
+            &mut self.send_buf,
+            ver.as_bytes(),
+            sender.as_bytes(),
+            target.as_bytes(),
+            seq,
+            &ts,
+            hb,
         );
         self.transport.send(&self.send_buf[..len])?;
         self.session.on_message_sent();
@@ -118,8 +127,12 @@ impl<T: Transport> FixEngine<T> {
         let sender = self.session.config().sender_comp_id.clone();
         let target = self.session.config().target_comp_id.clone();
         let len = serializer::build_heartbeat(
-            &mut self.send_buf, ver.as_bytes(), sender.as_bytes(), target.as_bytes(),
-            seq, &ts,
+            &mut self.send_buf,
+            ver.as_bytes(),
+            sender.as_bytes(),
+            target.as_bytes(),
+            seq,
+            &ts,
         );
         self.transport.send(&self.send_buf[..len])?;
         self.session.on_message_sent();
@@ -134,8 +147,12 @@ impl<T: Transport> FixEngine<T> {
         let sender = self.session.config().sender_comp_id.clone();
         let target = self.session.config().target_comp_id.clone();
         let len = serializer::build_logout(
-            &mut self.send_buf, ver.as_bytes(), sender.as_bytes(), target.as_bytes(),
-            seq, &ts,
+            &mut self.send_buf,
+            ver.as_bytes(),
+            sender.as_bytes(),
+            target.as_bytes(),
+            seq,
+            &ts,
         );
         self.transport.send(&self.send_buf[..len])?;
         self.session.on_logout_sent();
@@ -155,9 +172,11 @@ impl<T: Transport> FixEngine<T> {
         Ok(())
     }
 
-    /// Run the acceptor engine: process an already-connected socket.
-    /// The first Logon message should have already been read and the session
-    /// transitioned to Connecting. Call `handle_inbound_logon` first if needed.
+    /// Run the acceptor engine.
+    ///
+    /// For TCP socket acceptors, the first Logon can be pre-read and
+    /// acknowledged via `handle_inbound_logon()`. For Aeron/default integration,
+    /// `run_acceptor()` can ingest the initial Logon directly.
     pub fn run_acceptor(&mut self, app: &mut dyn FixApp) -> io::Result<()> {
         self.run_loop(app)
     }
@@ -197,9 +216,11 @@ impl<T: Transport> FixEngine<T> {
             let n = match self.transport.recv(&mut scratch) {
                 Ok(0) => continue,
                 Ok(n) => n,
-                Err(e) if e.kind() == io::ErrorKind::ConnectionReset
-                    || e.kind() == io::ErrorKind::BrokenPipe
-                    || e.kind() == io::ErrorKind::UnexpectedEof => {
+                Err(e)
+                    if e.kind() == io::ErrorKind::ConnectionReset
+                        || e.kind() == io::ErrorKind::BrokenPipe
+                        || e.kind() == io::ErrorKind::UnexpectedEof =>
+                {
                     self.session.on_disconnected();
                     self.should_stop = true;
                     break;
@@ -251,8 +272,23 @@ impl<T: Transport> FixEngine<T> {
 
                 match msg_type {
                     b"A" => {
-                        // Logon
-                        if self.session.state() == SessionState::LogonSent {
+                        if self.session.config().role == SessionRole::Acceptor
+                            && matches!(
+                                self.session.state(),
+                                SessionState::Disconnected | SessionState::Connecting
+                            )
+                        {
+                            if self.session.state() == SessionState::Disconnected {
+                                self.session.on_connected();
+                            }
+                            self.session.on_logon();
+                            self.send_logon()?;
+                            let mut ctx = EngineContext {
+                                transport: &mut self.transport,
+                                session: &mut self.session,
+                            };
+                            app.on_logon(&mut ctx)?;
+                        } else if self.session.state() == SessionState::LogonSent {
                             self.session.on_logon();
                             let mut ctx = EngineContext {
                                 transport: &mut self.transport,
@@ -301,8 +337,12 @@ impl<T: Transport> FixEngine<T> {
                     let sender = self.session.config().sender_comp_id.clone();
                     let target = self.session.config().target_comp_id.clone();
                     let len = serializer::build_logout(
-                        &mut self.send_buf, ver.as_bytes(), sender.as_bytes(), target.as_bytes(),
-                        seq, &ts,
+                        &mut self.send_buf,
+                        ver.as_bytes(),
+                        sender.as_bytes(),
+                        target.as_bytes(),
+                        seq,
+                        &ts,
                     );
                     let _ = self.transport.send(&self.send_buf[..len]);
                     self.session.on_disconnected();
