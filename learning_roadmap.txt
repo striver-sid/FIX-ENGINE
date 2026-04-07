@@ -45,3 +45,4 @@ Velocitas FIX Engine is a high-performance, Rust-based implementation of the Fin
 - Rust documentation: https://doc.rust-lang.org/
 - FIX protocol: https://www.fixtrading.org/
 - Project README.md and Simple_Explanation.md
+- Additional reading: AERON.md for Aeron transport details
