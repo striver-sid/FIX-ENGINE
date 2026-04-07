@@ -36,3 +36,8 @@ The engine is structured around several core components:
 - Millions of messages per second throughput
 - Minimal memory allocations
 - Predictable latency distribution
+
+## Community
+- Open source project
+- Contributions welcome
+- Join discussions on GitHub issues
