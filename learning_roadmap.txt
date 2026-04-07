@@ -1,0 +1,47 @@
+# Velocitas FIX Engine Learning Roadmap
+
+## Overview
+Velocitas FIX Engine is a high-performance, Rust-based implementation of the Financial Information eXchange (FIX) protocol. This roadmap will guide you through understanding and contributing to the project.
+
+## Prerequisites
+- Basic knowledge of financial markets and trading systems
+- Rust programming language (edition 2021 or later)
+- Understanding of network protocols and asynchronous programming
+
+## Step 1: Understand FIX Protocol
+- Read the FIX protocol specification (FIX 5.0 or later)
+- Study the project's SPECIFICATION.md file
+- Learn about FIX message structure, tags, and session management
+
+## Step 2: Explore the Codebase
+- Review the main library in src/lib.rs
+- Understand the modular structure: parser, serializer, session, transport layers
+- Look at the benchmarks in benches/ to understand performance characteristics
+
+## Step 3: Run the Demos
+- Build the project: `cargo build --release`
+- Run the TCP demo: `cargo run --bin tcp_demo`
+- Try the Aeron demo: `cargo run --bin aeron_demo`
+- Experiment with the dashboard: `cargo run --bin dashboard`
+
+## Step 4: Study Key Components
+- Message parsing and serialization (parser.rs, serializer.rs)
+- Session management (session.rs)
+- Transport layers (transport_tcp.rs, transport_aeron.rs, transport_dpdk.rs)
+- Dictionary compilation (dict_compiler.rs)
+
+## Step 5: Performance and Testing
+- Run the benchmarks: `cargo bench`
+- Review the test suites in tests/
+- Understand SIMD optimizations in simd.rs
+
+## Step 6: Contribute
+- Check issues on GitHub
+- Follow Rust coding standards
+- Add tests for new features
+- Update documentation
+
+## Resources
+- Rust documentation: https://doc.rust-lang.org/
+- FIX protocol: https://www.fixtrading.org/
+- Project README.md and Simple_Explanation.md

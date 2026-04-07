@@ -1,0 +1,34 @@
+# Getting Started with Velocitas FIX Engine
+
+## Installation
+1. Ensure you have Rust installed: https://rustup.rs/
+2. Clone the repository: `git clone <repo-url>`
+3. Navigate to the project: `cd velocitas-fix-engine`
+4. Build the project: `cargo build --release`
+
+## Running Your First Demo
+1. Start the TCP demo server: `cargo run --bin tcp_demo -- --server`
+2. In another terminal, run the client: `cargo run --bin tcp_demo -- --client`
+3. Observe the FIX message exchange
+
+## Development Setup
+- Use an IDE with Rust support (VS Code with rust-analyzer recommended)
+- Run tests: `cargo test`
+- Run benchmarks: `cargo bench`
+- Check code formatting: `cargo fmt --check`
+- Lint code: `cargo clippy`
+
+## Key Files to Explore
+- `src/lib.rs`: Main library entry point
+- `src/engine.rs`: Core engine logic
+- `src/message.rs`: FIX message representation
+- `src/session.rs`: Session management
+- `benches/`: Performance benchmarks
+- `tests/`: Unit and integration tests
+
+## Next Steps
+- Read the learning roadmap
+- Study the FIX protocol specification
+- Try modifying a demo to understand the code
+- Run the benchmarks to see performance characteristics
+- Look at open issues for contribution opportunities

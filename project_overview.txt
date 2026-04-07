@@ -1,0 +1,38 @@
+# Project Overview: Velocitas FIX Engine
+
+## What is Velocitas FIX Engine?
+Velocitas FIX Engine is a high-performance, memory-efficient implementation of the FIX (Financial Information eXchange) protocol written in Rust. It aims to provide ultra-low latency messaging for financial trading systems.
+
+## Key Features
+- **High Performance**: Optimized for low-latency trading environments
+- **Multiple Transports**: Supports TCP, Aeron (UDP multicast), and DPDK
+- **SIMD Optimizations**: Uses CPU vector instructions for fast parsing
+- **Comprehensive Testing**: Property-based testing and benchmarks
+- **Modular Design**: Clean separation of concerns for easy extension
+
+## Architecture
+The engine is structured around several core components:
+- **Parser/Serializer**: Handles FIX message encoding/decoding
+- **Session Layer**: Manages FIX session state and sequencing
+- **Transport Layer**: Abstracts network communication
+- **Dictionary**: Compile-time validation of FIX messages
+- **Metrics/Dashboard**: Monitoring and observability
+
+## Use Cases
+- High-frequency trading platforms
+- Market data distribution systems
+- Order management systems
+- Algorithmic trading engines
+
+## Technology Stack
+- **Language**: Rust (safe, fast, concurrent)
+- **Build Tool**: Cargo
+- **Testing**: Built-in Rust testing + property testing
+- **Benchmarking**: Criterion.rs
+- **Documentation**: Rustdoc
+
+## Performance Goals
+- Sub-microsecond message parsing
+- Millions of messages per second throughput
+- Minimal memory allocations
+- Predictable latency distribution
